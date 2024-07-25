@@ -14,8 +14,9 @@ def get_default_config():
     # data
     cfg.data = CN()
     cfg.data.type = 'image'
-    cfg.data.root = 'reid-data'
+    cfg.data.root = '/mnt/data4'
     cfg.data.sources = ['market1501']
+    cfg.data.source_evals = ['market1501']
     cfg.data.targets = ['market1501']
     cfg.data.workers = 4 # number of data loading workers
     cfg.data.split_id = 0 # split index
@@ -28,6 +29,10 @@ def get_default_config():
     cfg.data.norm_std = [0.229, 0.224, 0.225] # default is imagenet std
     cfg.data.save_dir = 'log' # path to save log
     cfg.data.load_train_targets = False # load training set from target dataset
+    cfg.data.aug_dir = '/mnt/data4/Market-1501-v15.09.15/train_aug_per_pid'
+    cfg.data.aug_per_pid = 0
+    cfg.data.aug_pid_list = []
+    cfg.data.train_split_ratio = 0.2
 
     # specific datasets
     cfg.market1501 = CN()
@@ -105,6 +110,8 @@ def get_default_config():
     cfg.test.rerank = False # use person re-ranking
     cfg.test.visrank = False # visualize ranked results (only available when cfg.test.evaluate=True)
     cfg.test.visrank_topk = 10 # top-k ranks to visualize
+    cfg.test.eval_trainset = False
+    cfg.test.save_pid_freq = -1
 
     return cfg
 
@@ -113,6 +120,7 @@ def imagedata_kwargs(cfg):
     return {
         'root': cfg.data.root,
         'sources': cfg.data.sources,
+        'source_evals': cfg.data.source_evals,
         'targets': cfg.data.targets,
         'height': cfg.data.height,
         'width': cfg.data.width,
@@ -136,6 +144,11 @@ def imagedata_kwargs(cfg):
         'cuhk03_labeled': cfg.cuhk03.labeled_images,
         'cuhk03_classic_split': cfg.cuhk03.classic_split,
         'market1501_500k': cfg.market1501.use_500k_distractors,
+        # aug w/ generated images
+        'aug_dir': cfg.data.aug_dir,
+        'aug_per_pid': cfg.data.aug_per_pid,
+        'aug_pid_list': cfg.data.aug_pid_list,
+        'train_split_ratio': cfg.data.train_split_ratio
     }
 
 
@@ -208,5 +221,7 @@ def engine_run_kwargs(cfg):
         'visrank_topk': cfg.test.visrank_topk,
         'use_metric_cuhk03': cfg.cuhk03.use_metric_cuhk03,
         'ranks': cfg.test.ranks,
-        'rerank': cfg.test.rerank
+        'rerank': cfg.test.rerank,
+        'eval_trainset': cfg.test.eval_trainset,
+        'save_pid_freq': cfg.test.save_pid_freq
     }

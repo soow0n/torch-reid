@@ -3,6 +3,7 @@ import numpy as np
 import warnings
 from collections import defaultdict
 
+
 try:
     from torchreid.metrics.rank_cylib.rank_cy import evaluate_cy
     IS_CYTHON_AVAI = True
@@ -91,7 +92,7 @@ def eval_cuhk03(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     return all_cmc, mAP
 
 
-def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
+def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank, save_pid=False):
     """Evaluation with market1501 metric
     Key: for each query identity, its gallery images from the same camera view are discarded.
     """
@@ -112,6 +113,7 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     all_AP = []
     num_valid_q = 0. # number of valid query
 
+    pid_AP_pairs = defaultdict(list)
     for q_idx in range(num_q):
         # get query pid and camid
         q_pid = q_pids[q_idx]
@@ -143,6 +145,8 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
         tmp_cmc = np.asarray(tmp_cmc) * raw_cmc
         AP = tmp_cmc.sum() / num_rel
         all_AP.append(AP)
+        
+        pid_AP_pairs[int(q_pid)].append(AP)
 
     assert num_valid_q > 0, 'Error: all query identities do not appear in gallery'
 
@@ -150,11 +154,13 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     all_cmc = all_cmc.sum(0) / num_valid_q
     mAP = np.mean(all_AP)
 
+    if save_pid:
+        return all_cmc, mAP, pid_AP_pairs
     return all_cmc, mAP
 
 
 def evaluate_py(
-    distmat, q_pids, g_pids, q_camids, g_camids, max_rank, use_metric_cuhk03
+    distmat, q_pids, g_pids, q_camids, g_camids, max_rank, use_metric_cuhk03, save_pid=False
 ):
     if use_metric_cuhk03:
         return eval_cuhk03(
@@ -162,7 +168,7 @@ def evaluate_py(
         )
     else:
         return eval_market1501(
-            distmat, q_pids, g_pids, q_camids, g_camids, max_rank
+            distmat, q_pids, g_pids, q_camids, g_camids, max_rank, save_pid
         )
 
 
@@ -174,7 +180,8 @@ def evaluate_rank(
     g_camids,
     max_rank=50,
     use_metric_cuhk03=False,
-    use_cython=True
+    use_cython=True,
+    save_pid=False
 ):
     """Evaluates CMC rank.
 
@@ -195,7 +202,7 @@ def evaluate_rank(
             This is highly recommended as the cython code can speed up the cmc computation
             by more than 10x. This requires Cython to be installed.
     """
-    if use_cython and IS_CYTHON_AVAI:
+    if use_cython and IS_CYTHON_AVAI and not save_pid:
         return evaluate_cy(
             distmat, q_pids, g_pids, q_camids, g_camids, max_rank,
             use_metric_cuhk03
@@ -203,5 +210,5 @@ def evaluate_rank(
     else:
         return evaluate_py(
             distmat, q_pids, g_pids, q_camids, g_camids, max_rank,
-            use_metric_cuhk03
+            use_metric_cuhk03, save_pid
         )

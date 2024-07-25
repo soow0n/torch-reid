@@ -1,6 +1,7 @@
 from __future__ import division, print_function, absolute_import
 import time
 import numpy as np
+import os
 import os.path as osp
 import datetime
 from collections import OrderedDict
@@ -14,7 +15,9 @@ from torchreid.utils import (
     open_specified_layers, visualize_ranked_results
 )
 from torchreid.losses import DeepSupervision
-
+import wandb
+import matplotlib.pyplot as plt
+import json
 
 class Engine(object):
     r"""A generic base Engine class for both image- and video-reid.
@@ -28,6 +31,7 @@ class Engine(object):
     def __init__(self, datamanager, use_gpu=True):
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
+        self.val_loader = self.datamanager.val_loader
         self.test_loader = self.datamanager.test_loader
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
         self.writer = None
@@ -40,6 +44,8 @@ class Engine(object):
         self._models = OrderedDict()
         self._optims = OrderedDict()
         self._scheds = OrderedDict()
+        
+        self.save_pid = False
 
     def register_model(self, name='model', model=None, optim=None, sched=None):
         if self.__dict__.get('_models') is None:
@@ -72,7 +78,7 @@ class Engine(object):
         else:
             return names_real
 
-    def save_model(self, epoch, rank1, save_dir, is_best=False):
+    def save_model(self, epoch, rank1, mAP, save_dir, is_best=False):
         names = self.get_model_names()
 
         for name in names:
@@ -81,6 +87,7 @@ class Engine(object):
                     'state_dict': self._models[name].state_dict(),
                     'epoch': epoch + 1,
                     'rank1': rank1,
+                    'mAP': mAP,
                     'optimizer': self._optims[name].state_dict(),
                     'scheduler': self._scheds[name].state_dict()
                 },
@@ -127,7 +134,9 @@ class Engine(object):
         visrank_topk=10,
         use_metric_cuhk03=False,
         ranks=[1, 5, 10, 20],
-        rerank=False
+        rerank=False,
+        eval_trainset=False,
+        save_pid_freq=-1
     ):
         r"""A unified pipeline for training and evaluating a model.
 
@@ -197,7 +206,7 @@ class Engine(object):
                and eval_freq > 0 \
                and (self.epoch+1) % eval_freq == 0 \
                and (self.epoch + 1) != self.max_epoch:
-                rank1 = self.test(
+                test_rank1, test_mAP = self.test(
                     dist_metric=dist_metric,
                     normalize_feature=normalize_feature,
                     visrank=visrank,
@@ -206,11 +215,41 @@ class Engine(object):
                     use_metric_cuhk03=use_metric_cuhk03,
                     ranks=ranks
                 )
-                self.save_model(self.epoch, rank1, save_dir)
+                self.save_model(self.epoch, test_rank1, test_mAP, save_dir)
+                wandb.log({
+                    'validation': {
+                        'test_R1': test_rank1,
+                        'test_mAP': test_mAP
+                    }
+                })
+                
+                if eval_trainset:
+                    self.save_pid = False
+                    if save_pid_freq > 0 and(self.epoch + 1) % save_pid_freq == 0:
+                        self.save_pid = True
+                    
+                    train_rank1, train_mAP = self.test(
+                        dist_metric=dist_metric,
+                        normalize_feature=normalize_feature,
+                        visrank=visrank,
+                        visrank_topk=visrank_topk,
+                        save_dir=save_dir,
+                        use_metric_cuhk03=use_metric_cuhk03,
+                        ranks=ranks,
+                        use_val_loader=True
+                    )
+                    wandb.log({
+                        'validation': {
+                            'train_R1': train_rank1,
+                            'train_mAP': train_mAP,
+                        }
+                    })
+                
+                    
 
         if self.max_epoch > 0:
             print('=> Final test')
-            rank1 = self.test(
+            rank1, mAP = self.test(
                 dist_metric=dist_metric,
                 normalize_feature=normalize_feature,
                 visrank=visrank,
@@ -219,7 +258,7 @@ class Engine(object):
                 use_metric_cuhk03=use_metric_cuhk03,
                 ranks=ranks
             )
-            self.save_model(self.epoch, rank1, save_dir)
+            self.save_model(self.epoch, rank1, mAP, save_dir)
 
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
@@ -246,6 +285,11 @@ class Engine(object):
             batch_time.update(time.time() - end)
             losses.update(loss_summary)
 
+            for k in loss_summary.keys():
+                wandb.log({
+                    'train': {k: loss_summary[k]}
+                })
+
             if (self.batch_idx + 1) % print_freq == 0:
                 nb_this_epoch = self.num_batches - (self.batch_idx + 1)
                 nb_future_epochs = (
@@ -271,6 +315,7 @@ class Engine(object):
                         lr=self.get_current_lr()
                     )
                 )
+                wandb.log({'train': {'lr': self.get_current_lr()}})
 
             if self.writer is not None:
                 n_iter = self.epoch * self.num_batches + self.batch_idx
@@ -298,7 +343,8 @@ class Engine(object):
         save_dir='',
         use_metric_cuhk03=False,
         ranks=[1, 5, 10, 20],
-        rerank=False
+        rerank=False,
+        use_val_loader=False
     ):
         r"""Tests model on target datasets.
 
@@ -314,13 +360,25 @@ class Engine(object):
             but not a must. Please refer to the source code for more details.
         """
         self.set_model_mode('eval')
-        targets = list(self.test_loader.keys())
+        
+        
+        if use_val_loader:
+            assert self.val_loader is not None
+            query_gallery_loader = self.val_loader
+            step_name = "Validate"
+        else:
+            query_gallery_loader = self.test_loader
+            step_name = "Test"    
+        
+        targets = list(query_gallery_loader.keys())
 
         for name in targets:
             domain = 'source' if name in self.datamanager.sources else 'target'
             print('##### Evaluating {} ({}) #####'.format(name, domain))
-            query_loader = self.test_loader[name]['query']
-            gallery_loader = self.test_loader[name]['gallery']
+
+            query_loader = query_gallery_loader[name]['query']
+            gallery_loader = query_gallery_loader[name]['gallery']
+
             rank1, mAP = self._evaluate(
                 dataset_name=name,
                 query_loader=query_loader,
@@ -334,12 +392,43 @@ class Engine(object):
                 ranks=ranks,
                 rerank=rerank
             )
-
+            
             if self.writer is not None:
-                self.writer.add_scalar(f'Test/{name}/rank1', rank1, self.epoch)
-                self.writer.add_scalar(f'Test/{name}/mAP', mAP, self.epoch)
+                self.writer.add_scalar(f'{step_name}/{name}/rank1', rank1, self.epoch)
+                self.writer.add_scalar(f'{step_name}/{name}/mAP', mAP, self.epoch)
 
-        return rank1
+        return rank1, mAP
+
+    def log_instance_ap(self, pid_AP_pairs, save_dir):
+        pid_mAP_pairs = []
+        for q_pid in pid_AP_pairs.keys():
+            pid_AP_pairs[q_pid].sort()
+            
+            pid_mAP_item = np.mean(pid_AP_pairs[q_pid])
+            pid_mAP_pairs.append((q_pid, pid_mAP_item))
+        pid_mAP_pairs.sort(key=lambda x: x[1])
+
+        pids, mAPs = zip(*pid_mAP_pairs)
+
+        plt.figure()
+        plt.plot(range(len(pid_mAP_pairs)), mAPs, marker='o')
+        plt.title("mAP per PID (sorted)")
+        plt.xlabel("pid index")
+        plt.ylabel("mAP")
+        wandb.log({"pid_mAP": wandb.Image(plt)})
+        
+        json_dir = osp.join(save_dir, f'epoch{self.epoch}')
+        os.makedirs(json_dir, exist_ok=True)
+        
+        instance_ap_path = osp.join(json_dir, 'instance_ap.json')
+        with open(instance_ap_path, 'w') as f:
+            json.dump(pid_AP_pairs, f)
+            
+        pid_map_path = osp.join(json_dir, 'pid_mAP.json')
+        with open(pid_map_path, 'w') as f:
+            mAP_json = {'pid': pids, 'mAP': mAPs}
+            json.dump(mAP_json, f)
+        
 
     @torch.no_grad()
     def _evaluate(
@@ -404,15 +493,23 @@ class Engine(object):
             distmat = re_ranking(distmat, distmat_qq, distmat_gg)
 
         print('Computing CMC and mAP ...')
-        cmc, mAP = metrics.evaluate_rank(
+        result = metrics.evaluate_rank(
             distmat,
             q_pids,
             g_pids,
             q_camids,
             g_camids,
-            use_metric_cuhk03=use_metric_cuhk03
+            use_metric_cuhk03=use_metric_cuhk03,
+            save_pid=self.save_pid
         )
-
+        
+        if self.save_pid:
+            cmc, mAP, pid_AP_pairs = result
+            self.log_instance_ap(pid_AP_pairs, save_dir)
+        else:
+            cmc, mAP = result
+        
+            
         print('** Results **')
         print('mAP: {:.1%}'.format(mAP))
         print('CMC curve')

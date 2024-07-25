@@ -16,6 +16,8 @@ from default_config import (
     get_default_config, lr_scheduler_kwargs
 )
 
+import wandb
+
 
 def build_datamanager(cfg):
     if cfg.data.type == 'image':
@@ -137,6 +139,15 @@ def main():
     cfg.merge_from_list(args.opts)
     set_random_seed(cfg.train.seed)
     check_cfg(cfg)
+
+    wandb.login(key='6aae427192fa5bd9ab78c054c31205e0dc7ba771')
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="Aug-Partial",
+        entity="skt-reid",
+        name='test',
+        config=cfg
+    )
 
     log_name = 'test.log' if cfg.test.evaluate else 'train.log'
     log_name += time.strftime('-%Y-%m-%d-%H-%M-%S')

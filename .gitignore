@@ -139,3 +139,5 @@ log/
 saved-models/
 model-zoo/
 debug*
+
+wandb

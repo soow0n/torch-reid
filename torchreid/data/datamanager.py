@@ -25,6 +25,7 @@ class DataManager(object):
     def __init__(
         self,
         sources=None,
+        source_evals=None,
         targets=None,
         height=256,
         width=128,
@@ -34,6 +35,7 @@ class DataManager(object):
         use_gpu=False
     ):
         self.sources = sources
+        self.source_evals = source_evals
         self.targets = targets
         self.height = height
         self.width = width
@@ -154,6 +156,7 @@ class ImageDataManager(DataManager):
         self,
         root='',
         sources=None,
+        source_evals=None,
         targets=None,
         height=256,
         width=128,
@@ -175,11 +178,16 @@ class ImageDataManager(DataManager):
         train_sampler_t='RandomSampler',
         cuhk03_labeled=False,
         cuhk03_classic_split=False,
-        market1501_500k=False
+        market1501_500k=False,
+        aug_dir=None,
+        aug_per_pid=0,
+        aug_pid_list=[],
+        train_split_ratio=0.2
     ):
 
         super(ImageDataManager, self).__init__(
             sources=sources,
+            source_evals=source_evals,
             targets=targets,
             height=height,
             width=width,
@@ -202,7 +210,10 @@ class ImageDataManager(DataManager):
                 split_id=split_id,
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
-                market1501_500k=market1501_500k
+                market1501_500k=market1501_500k,
+                aug_dir=aug_dir,
+                aug_per_pid=aug_per_pid,
+                aug_pid_list=aug_pid_list
             )
             trainset.append(trainset_)
         trainset = sum(trainset)
@@ -226,6 +237,78 @@ class ImageDataManager(DataManager):
             pin_memory=self.use_gpu,
             drop_last=True
         )
+    
+    
+        if len(source_evals) > 0:
+            print('=> Loading validation (source) dataset')
+            self.val_loader = {
+                name: {
+                    'query': None,
+                    'gallery': None
+                }
+                for name in source_evals
+            }
+            self.val_dataset = {
+                name: {
+                    'query': None,
+                    'gallery': None
+                }
+                for name in source_evals
+            }
+        else:
+            self.val_loader = None
+
+        for name in source_evals:
+            # build query loader from trainset
+            queryset = init_image_dataset(
+                name,
+                transform=self.transform_tr,
+                mode='query',
+                combineall=combineall,
+                root=root,
+                split_id=split_id,
+                cuhk03_labeled=cuhk03_labeled,
+                cuhk03_classic_split=cuhk03_classic_split,
+                market1501_500k=market1501_500k,
+                split_train_into_query_gallery=True,
+                train_split_ratio=train_split_ratio,
+            )
+            self.val_loader[name]['query'] = torch.utils.data.DataLoader(
+                queryset,
+                batch_size=batch_size_test,
+                shuffle=False,
+                num_workers=workers,
+                pin_memory=self.use_gpu,
+                drop_last=False
+            )
+
+            # build gallery loader from trainset
+            galleryset = init_image_dataset(
+                name,
+                transform=self.transform_tr,
+                mode='gallery',
+                combineall=combineall,
+                verbose=False,
+                root=root,
+                split_id=split_id,
+                cuhk03_labeled=cuhk03_labeled,
+                cuhk03_classic_split=cuhk03_classic_split,
+                market1501_500k=market1501_500k,
+                split_train_into_query_gallery=True,
+                train_split_ratio=train_split_ratio,
+            )
+            self.val_loader[name]['gallery'] = torch.utils.data.DataLoader(
+                galleryset,
+                batch_size=batch_size_test,
+                shuffle=False,
+                num_workers=workers,
+                pin_memory=self.use_gpu,
+                drop_last=False
+            )
+
+            self.val_dataset[name]['query'] = queryset.query
+            self.val_dataset[name]['gallery'] = galleryset.gallery
+        
 
         self.train_loader_t = None
         if load_train_targets:
