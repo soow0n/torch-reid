@@ -124,6 +124,12 @@ def main():
         '--root', type=str, default='', help='path to data root'
     )
     parser.add_argument(
+        '--project_name', type=str, default='test'
+    )
+    parser.add_argument(
+        '--exp_name', type=str, default='test'
+    )
+    parser.add_argument(
         'opts',
         default=None,
         nargs=argparse.REMAINDER,
@@ -143,9 +149,9 @@ def main():
     wandb.login(key='6aae427192fa5bd9ab78c054c31205e0dc7ba771')
     wandb.init(
         # set the wandb project where this run will be logged
-        project="Aug-Partial",
+        project=args.project_name,
         entity="skt-reid",
-        name='test',
+        name=args.exp_name,
         config=cfg
     )
 
