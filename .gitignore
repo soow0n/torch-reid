@@ -141,3 +141,5 @@ model-zoo/
 debug*
 
 wandb
+
+*.pth

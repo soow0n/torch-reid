@@ -1,7 +1,7 @@
 model:
   name: 'resnet50_fc512'
   pretrained: True
-  load_weights: ''
+  load_weights: '/workspace/pretrained_weights/sysu30k_r50.pth'
   resume: ''
 
 data:
@@ -34,7 +34,7 @@ train:
   fixbase_epoch: 5
   open_layers: ['fc', 'classifier']
   lr_scheduler: 'single_step'
-  stepsize: [20]
+  stepsize: [60]
 
 sampler:
   train_sampler: 'RandomIdentitySampler'
@@ -48,4 +48,3 @@ test:
   eval_freq: 1
   rerank: False
   eval_trainset: True
-  save_pid_freq: -1
