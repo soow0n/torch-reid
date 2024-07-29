@@ -13,3 +13,7 @@ from .sensereid import SenseReID
 from .market1501 import Market1501
 from .dukemtmcreid import DukeMTMCreID
 from .university1652 import University1652
+from .agreid import AGReIDV2
+from .lpw import LPW
+from .mars import MARS
+from .mevid import MEVID
