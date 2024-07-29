@@ -15,9 +15,10 @@ def get_default_config():
     cfg.data = CN()
     cfg.data.type = 'image'
     cfg.data.root = '/mnt/data4'
-    cfg.data.sources = ['market1501']
-    cfg.data.source_evals = ['market1501']
-    cfg.data.targets = ['market1501']
+    cfg.data.sources = ['market1501'] # train set
+    cfg.data.source_evals = ['market1501'] # test.eval_trainset=True 일때 사용되는 dataset
+                                           # market만 사용가능. duke 학습 시 빈 리스트로 설정 or test.eval_trainset=False
+    cfg.data.targets = ['market1501'] # test set
     cfg.data.workers = 4 # number of data loading workers
     cfg.data.split_id = 0 # split index
     cfg.data.height = 256 # image height
@@ -30,9 +31,9 @@ def get_default_config():
     cfg.data.save_dir = 'log' # path to save log
     cfg.data.load_train_targets = False # load training set from target dataset
     cfg.data.aug_dir = '/mnt/data4/Market-1501-v15.09.15/train_aug_per_pid'
-    cfg.data.aug_per_pid = 0
-    cfg.data.aug_pid_list = []
-    cfg.data.train_split_ratio = 0.2
+    cfg.data.aug_per_pid = 0 # pid 별 생성 이미지 개수
+    cfg.data.aug_pid_list = [] # 생성 pid list. ['all'] 로 지정해야 전체 pid에 대해 aug
+    cfg.data.train_split_ratio = 0.2 # test.eval_trainset=True 일 때 trainset을 query/gallery로 나누는 비율
 
     # specific datasets
     cfg.market1501 = CN()
@@ -110,8 +111,8 @@ def get_default_config():
     cfg.test.rerank = False # use person re-ranking
     cfg.test.visrank = False # visualize ranked results (only available when cfg.test.evaluate=True)
     cfg.test.visrank_topk = 10 # top-k ranks to visualize
-    cfg.test.eval_trainset = False
-    cfg.test.save_pid_freq = -1
+    cfg.test.eval_trainset = False # trainset을 query/gallery로 나눠서 validation
+    cfg.test.save_pid_freq = -1 # instance 별 AP / pid 별 mAP 저장. -1: 저장X
 
     return cfg
 
