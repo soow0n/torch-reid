@@ -142,6 +142,7 @@ class Market1501(ImageDataset):
     def process_train_aug_dir(self, pid_container, pid2label):
         if self.aug_pid_list[0] == 'all':
             self.aug_pid_list = list(pid_container)
+        # breakpoint()
         assert set(self.aug_pid_list).issubset(pid_container)
         
         aug_data = []
