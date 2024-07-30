@@ -1,0 +1,52 @@
+model:
+  name: 'resnet50_fc512'
+  pretrained: True
+  load_weights: ''
+  resume: ''
+
+data:
+  root: '/mnt/data4'
+  type: 'image'
+  sources: ['market1501']
+  targets: ['market1501']
+  height: 256
+  width: 128
+  combineall: False
+  transforms: ['random_flip']
+  k_tfm: 1
+
+  aug_dir: '/mnt/data4/Market-1501-v15.09.15/train_aug_per_pid'
+  aug_pid_list: ['all']
+  sample_mars: False
+
+loss:
+  name: 'triplet'
+  triplet:
+    weight_t: 1.
+    weight_x: 1.
+  softmax:
+    label_smooth: True
+
+train:
+  optim: 'amsgrad'
+  lr: 0.0003
+  max_epoch: 60
+  batch_size: 32
+  fixbase_epoch: 0
+  open_layers: ['fc', 'classifier']
+  lr_scheduler: 'single_step'
+  stepsize: [60]
+
+sampler:
+  train_sampler: 'RandomIdentitySampler'
+  num_instances: 8
+
+test:
+  batch_size: 100
+  dist_metric: 'euclidean'
+  normalize_feature: False
+  evaluate: False
+  eval_freq: 1
+  rerank: False
+  eval_trainset: True
+  save_pid_freq: -1

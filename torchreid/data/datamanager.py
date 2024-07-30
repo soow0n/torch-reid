@@ -182,7 +182,8 @@ class ImageDataManager(DataManager):
         aug_dir=None,
         aug_per_pid=0,
         aug_pid_list=[],
-        train_split_ratio=0.2
+        train_split_ratio=0.2,
+        sample_mars=False
     ):
 
         super(ImageDataManager, self).__init__(
@@ -199,7 +200,7 @@ class ImageDataManager(DataManager):
 
         print('=> Loading train (source) dataset')
         trainset = []
-        for name in self.sources:
+        for name in self.sources:    
             trainset_ = init_image_dataset(
                 name,
                 transform=self.transform_tr,
@@ -213,7 +214,8 @@ class ImageDataManager(DataManager):
                 market1501_500k=market1501_500k,
                 aug_dir=aug_dir,
                 aug_per_pid=aug_per_pid,
-                aug_pid_list=aug_pid_list
+                aug_pid_list=aug_pid_list,
+                sample_mars=sample_mars
             )
             trainset.append(trainset_)
         trainset = sum(trainset)
@@ -271,7 +273,7 @@ class ImageDataManager(DataManager):
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k,
                 split_train_into_query_gallery=True,
-                train_split_ratio=train_split_ratio,
+                train_split_ratio=train_split_ratio
             )
             self.val_loader[name]['query'] = torch.utils.data.DataLoader(
                 queryset,
@@ -329,7 +331,8 @@ class ImageDataManager(DataManager):
                     split_id=split_id,
                     cuhk03_labeled=cuhk03_labeled,
                     cuhk03_classic_split=cuhk03_classic_split,
-                    market1501_500k=market1501_500k
+                    market1501_500k=market1501_500k,
+                    sample_mars=True
                 )
                 trainset_t.append(trainset_t_)
             trainset_t = sum(trainset_t)

@@ -34,6 +34,7 @@ def get_default_config():
     cfg.data.aug_per_pid = 0 # pid 별 생성 이미지 개수
     cfg.data.aug_pid_list = [] # 생성 pid list. ['all'] 로 지정해야 전체 pid에 대해 aug
     cfg.data.train_split_ratio = 0.2 # test.eval_trainset=True 일 때 trainset을 query/gallery로 나누는 비율
+    cfg.data.sample_mars = False
 
     # specific datasets
     cfg.market1501 = CN()
@@ -149,7 +150,8 @@ def imagedata_kwargs(cfg):
         'aug_dir': cfg.data.aug_dir,
         'aug_per_pid': cfg.data.aug_per_pid,
         'aug_pid_list': cfg.data.aug_pid_list,
-        'train_split_ratio': cfg.data.train_split_ratio
+        'train_split_ratio': cfg.data.train_split_ratio,
+        'sample_mars': cfg.data.sample_mars
     }
 
 
