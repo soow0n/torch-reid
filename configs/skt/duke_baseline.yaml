@@ -7,9 +7,9 @@ model:
 data:
   root: '/mnt/data4'
   type: 'image'
-  sources: ['dukemtmc']
+  sources: ['dukemtmcreid']
   source_evals: []
-  targets: ['dukemtmc']
+  targets: ['dukemtmcreid']
   height: 256
   width: 128
   combineall: False
@@ -29,7 +29,7 @@ loss:
 
 train:
   optim: 'amsgrad'
-  lr: 0.0003
+  lr: 0.0002
   max_epoch: 60
   batch_size: 32
   fixbase_epoch: 0

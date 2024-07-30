@@ -2,9 +2,10 @@ from __future__ import division, print_function, absolute_import
 import re
 import glob
 import os.path as osp
+import warnings
 
 from ..dataset import ImageDataset
-
+import random
 
 class DukeMTMCreID(ImageDataset):
     """DukeMTMC-reID.
@@ -23,9 +24,28 @@ class DukeMTMCreID(ImageDataset):
     
     dataset_dir = 'DukeMTMC-reID'
 
-    def __init__(self, root, **kwargs):
-        self.data_dir = osp.join(root, self.dataset_dir)
-        
+    def __init__(
+            self, 
+            root='', 
+            aug_dir=None,
+            aug_per_pid=0,
+            aug_pid_list=[],
+            train_split_ratio=0.2,
+            **kwargs):
+        # self.data_dir = osp.join(root, self.dataset_dir)
+
+        # allow alternative directory structure
+        # self.data_dir = self.dataset_dir
+        data_dir = osp.join(root, 'DukeMTMC-reID')
+        if osp.isdir(data_dir):
+            self.data_dir = data_dir
+        else:
+            warnings.warn(
+                'The current data structure is deprecated. Please '
+                'put data folders such as "bounding_box_train" under '
+                '"DukeMTMC-reID".'
+            )
+
         self.train_dir = osp.join(self.data_dir, 'bounding_box_train')
         self.query_dir = osp.join(self.data_dir, 'query')
         self.gallery_dir = osp.join(self.data_dir, 'bounding_box_test')
@@ -33,15 +53,30 @@ class DukeMTMCreID(ImageDataset):
         required_files = [
             self.data_dir, self.train_dir, self.query_dir, self.gallery_dir
         ]
+
+        # augment with generated images
+        self.aug_per_pid = aug_per_pid
+        self.aug_pid_list = aug_pid_list
+        if self.aug_per_pid > 0:
+            assert len(self.aug_pid_list) > 0, "Please select pids for augmentation"
+        
+        if self.aug_per_pid > 0:
+            self.aug_dir = osp.join(aug_dir, f'aug{self.aug_per_pid}')
+            required_files.append(self.aug_dir)
+            do_aug = True
+        else:
+            self.aug_dir = None
+            do_aug = False
+
         self.check_before_run(required_files)
 
-        train = self.process_dir(self.train_dir, relabel=True)
+        train = self.process_dir(self.train_dir, relabel=True, aug=do_aug)
         query = self.process_dir(self.query_dir, relabel=False)
         gallery = self.process_dir(self.gallery_dir, relabel=False)
 
         super(DukeMTMCreID, self).__init__(train, query, gallery, **kwargs)
 
-    def process_dir(self, dir_path, relabel=False):
+    def process_dir(self, dir_path, relabel=False, aug=False):
         img_paths = glob.glob(osp.join(dir_path, '*.jpg'))
         pattern = re.compile(r'([-\d]+)_c(\d)')
 
@@ -59,5 +94,29 @@ class DukeMTMCreID(ImageDataset):
             if relabel:
                 pid = pid2label[pid]
             data.append((img_path, pid, camid))
+        
+        if aug:
+            aug_data = self.process_train_aug_dir(pid_container, pid2label)
+            data += aug_data
 
         return data
+
+    def process_train_aug_dir(self, pid_container, pid2label):
+        if self.aug_pid_list[0] == 'all':
+            self.aug_pid_list = list(pid_container)
+        assert set(self.aug_pid_list).issubset(pid_container)
+        
+        aug_data = []
+        aug_paths = glob.glob(osp.join(self.aug_dir, '*.png'))
+        pattern = re.compile(r'([-\d]+)_c(\d)')
+        for aug_path in aug_paths:
+            pid, camid = map(int, pattern.search(aug_path).groups())
+            if pid not in self.aug_pid_list:
+                continue
+            
+            assert 1 <= camid <= 8
+            camid -= 1 # index starts from 0
+            pid = pid2label[pid]
+            aug_data.append((aug_path, pid, camid))
+
+        return aug_data
