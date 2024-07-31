@@ -206,6 +206,7 @@ class Engine(object):
                and eval_freq > 0 \
                and (self.epoch+1) % eval_freq == 0 \
                and (self.epoch + 1) != self.max_epoch:
+                self.save_pid = False
                 test_rank1, test_mAP = self.test(
                     dist_metric=dist_metric,
                     normalize_feature=normalize_feature,
@@ -417,7 +418,7 @@ class Engine(object):
         plt.ylabel("mAP")
         wandb.log({"pid_mAP": wandb.Image(plt)})
         
-        json_dir = osp.join(save_dir, f'epoch{self.epoch}')
+        json_dir = osp.join(save_dir, f'epoch{self.epoch + 1}')
         os.makedirs(json_dir, exist_ok=True)
         
         instance_ap_path = osp.join(json_dir, 'instance_ap.json')
